@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "43077897549",
+    "project_id": "chatappjordan-fefcd",
+    "storage_bucket": "chatappjordan-fefcd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:43077897549:android:acb61e6fd51fbe04577b04",
+        "android_client_info": {
+          "package_name": "com.example.chatty"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDAS5DbMaxExivwVtZDtwUKsIS2orh_Jns"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
