@@ -1,6 +1,7 @@
 import 'package:chatty/src/core/services/chat_services.dart';
 import 'package:chatty/src/core/services/firebase_option.dart';
 import 'package:chatty/src/shared/extensions/dynamic.dart';
+import 'package:chatty/src/shared/utils/timestamp.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -127,7 +128,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
                 if (existingChat != null) {
                   if (mounted) {
-                    context.push('/chats/${otherUserid}', extra: email);
+                    context.push('/chats/$otherUserid', extra: email);
                   }
                   return;
                 }
@@ -225,6 +226,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                           }
 
                           final userData = userSnapShot.data!.data();
+                          print('User Data: ${userData?['displayName']}');
                           final otherUserName = userData?['name'] ?? 'Unknown User';
 
                           return _ChatListItem(
@@ -232,7 +234,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                             lastMessage: chat['lastMessage'].isNullOrEmpty() 
                                 ? 'No messages yet'
                                 : chat['lastMessage'],
-                            time: _formatTime(chat['lastMessageTime'] as Timestamp? ?? Timestamp.now()),
+                            time: formatTimeStamp(chat['lastMessageTime'] as Timestamp? ?? Timestamp.now()),
                             unreadCount: chat['unreadCount'],
                             onTap: () => context.push('/chats/${chat['id']}', extra: chat['name']));
                         });
@@ -246,11 +248,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
-  String _formatTime(Timestamp timestamp) {
-    if (timestamp == null) return 'N/A';
-    final date = timestamp.toDate();
-    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
 }
 
 class _ChatListItem extends StatelessWidget {

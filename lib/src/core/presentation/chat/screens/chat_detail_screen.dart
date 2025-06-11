@@ -1,3 +1,6 @@
+import 'package:chatty/src/core/services/chat_services.dart';
+import 'package:chatty/src/shared/utils/timestamp.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class ChatDetailScreen extends StatefulWidget {
@@ -17,30 +20,39 @@ class ChatDetailScreen extends StatefulWidget {
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-
+  final ChatServices _chatServices = ChatServices();
   // Mock messages for UI demonstration
-  final List<Map<String, dynamic>> _mockMessages = [
-    {
-      'message': 'Hey there!',
-      'isMe': true,
-      'time': '09:30',
-    },
-    {
-      'message': 'Hi! How are you?',
-      'isMe': false,
-      'time': '09:31',
-    },
-    {
-      'message': 'I\'m doing great, thanks! How about you?',
-      'isMe': true,
-      'time': '09:32',
-    },
-    {
-      'message': 'Pretty good! Working on some new features.',
-      'isMe': false,
-      'time': '09:33',
-    },
-  ];
+  // final List<Map<String, dynamic>> _mockMessages = [
+  //   {
+  //     'message': 'Hey there!',
+  //     'isMe': true,
+  //     'time': '09:30',
+  //   },
+  //   {
+  //     'message': 'Hi! How are you?',
+  //     'isMe': false,
+  //     'time': '09:31',
+  //   },
+  //   {
+  //     'message': 'I\'m doing great, thanks! How about you?',
+  //     'isMe': true,
+  //     'time': '09:32',
+  //   },
+  //   {
+  //     'message': 'Pretty good! Working on some new features.',
+  //     'isMe': false,
+  //     'time': '09:33',
+  //   },
+  // ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Scroll to the bottom when the screen is initialized
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom();
+    });
+  }
 
   @override
   void dispose() {
@@ -62,7 +74,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-  
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -73,46 +84,63 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(8.0),
-              itemCount: _mockMessages.length,
-              itemBuilder: (context, index) {
-                final message = _mockMessages[index];
-                final isMe = message['isMe'] as bool;
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _chatServices.getMessages(widget.chatId),
+              builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return const Center(child: Text('Woi aplikasi nya error!'));
+                  }
 
-                return Align(
-                  alignment:
-                      isMe ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 4.0),
-                    padding: const EdgeInsets.all(12.0),
-                    decoration: BoxDecoration(
-                      color: isMe ? Colors.blue : Colors.grey[300],
-                      borderRadius: BorderRadius.circular(12.0),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          message['message'],
-                          style: TextStyle(
-                            color: isMe ? Colors.white : Colors.black,
-                          ),
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final messages = snapshot.data?.docs ?? [];
+
+                return ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(8.0),
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                     final message =
+                              messages[index].data() as Map<String, dynamic>;
+                          final isMe =
+                              message['senderId'] == _chatServices.currentUser?.uid;
+                
+                    return Align(
+                      alignment:
+                          isMe ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 4.0),
+                        padding: const EdgeInsets.all(12.0),
+                        decoration: BoxDecoration(
+                          color: isMe ? Colors.blue : Colors.grey[300],
+                          borderRadius: BorderRadius.circular(12.0),
                         ),
-                        const SizedBox(height: 4.0),
-                        Text(
-                          message['time'],
-                          style: TextStyle(
-                            fontSize: 10.0,
-                            color: isMe ? Colors.white70 : Colors.black54,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              message['message'],
+                              style: TextStyle(
+                                color: isMe ? Colors.white : Colors.black,
+                              ),
+                            ),
+                            const SizedBox(height: 4.0),
+                            Text(
+                              formatTimeStamp(message['timestamp'] as Timestamp?),
+                              style: TextStyle(
+                                fontSize: 10.0,
+                                color: isMe ? Colors.white70 : Colors.black54,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    );
+                  },
                 );
-              },
+              }
             ),
           ),
           Container(
@@ -179,13 +207,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void _sendMessage() {
     final message = _messageController.text.trim();
     if (message.isNotEmpty) {
-      setState(() {
-        _mockMessages.add({
-          'message': message,
-          'isMe': true,
-          'time': '${DateTime.now().hour}:${DateTime.now().minute}',
-        });
-      });
+      _chatServices.sendMessage(widget.chatId, message);
       _messageController.clear();
       _scrollToBottom();
     }

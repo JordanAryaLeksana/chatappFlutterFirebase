@@ -1,7 +1,9 @@
 import 'package:chatty/src/core/presentation/chat/screens/chat_detail_screen.dart';
 import 'package:chatty/src/core/presentation/chat/screens/chat_list_screen.dart';
 import 'package:chatty/src/core/presentation/login/login_page.dart';
+import 'package:chatty/src/core/services/chat_services.dart';
 import 'package:chatty/src/routes/routes.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -45,7 +47,7 @@ final goRouterProvider = Provider<GoRouter>(
             final userId = state.pathParameters['userId']!;
             final email = state.extra as String? ?? '';
             return ChatDetailScreen(
-              chatId: 'chat_$userId',
+              chatId: ChatServices().generateChatId(FirebaseAuth.instance.currentUser?.uid ?? '', userId),
               otherUserName: email,
             );
           },
