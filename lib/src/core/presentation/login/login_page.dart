@@ -12,9 +12,20 @@ class LoginPage extends StatelessWidget {
     try{
       await _firebaseService.signInWithGoogle();
       if(context.mounted){
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          duration: const Duration(seconds: 2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8.r),
+          ),
+          content: const Text('Sign in successful'),
+          backgroundColor: Colors.green,
+        ));
         context.go('/chats');
       }
+
+      print('Sign in successful');
     } catch(e){
+      print('Sign in failed: $e');
       if(context.mounted){
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -29,7 +40,9 @@ class LoginPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.yellow,
       body: SafeArea(
+        
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -40,7 +53,7 @@ class LoginPage extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 32.sp,
                   fontWeight: FontWeight.bold,
-                  color: Colors.blue,
+                  color: Colors.white,
                 ),
               ),
               SizedBox(height: 8.h),
@@ -48,7 +61,7 @@ class LoginPage extends StatelessWidget {
                 'Connect with friends',
                 style: TextStyle(
                   fontSize: 16.sp,
-                  color: Colors.grey[600],
+                  color: Colors.white,
                 ),
               ),
               SizedBox(height: 48.h),

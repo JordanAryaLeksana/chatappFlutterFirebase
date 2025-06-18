@@ -1,6 +1,6 @@
 import 'package:chatty/src/core/services/chat_services.dart';
 import 'package:chatty/src/core/services/firebase_option.dart';
-import 'package:chatty/src/shared/extensions/dynamic.dart';
+
 import 'package:chatty/src/shared/utils/timestamp.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -15,32 +15,9 @@ class ChatListScreen extends StatefulWidget {
 }
 
 class _ChatListScreenState extends State<ChatListScreen> {
-  final TextEditingController _emailController = TextEditingController();
   final FirebaseService _firebaseService = FirebaseService();
   final ChatServices _chatService = ChatServices();
-  final List<Map<String, dynamic>> _mockChats = [
-    {
-      'id': '1',
-      'name': 'John Doe',
-      'lastMessage': 'Hey, how are you?',
-      'time': '09:30',
-      'unreadCount': 2,
-    },
-    {
-      'id': '2',
-      'name': 'Jane Smith',
-      'lastMessage': 'See you tomorrow!',
-      'time': '08:45',
-      'unreadCount': 0,
-    },
-    {
-      'id': '3',
-      'name': 'Mike Johnson',
-      'lastMessage': 'Thanks for your help',
-      'time': 'Yesterday',
-      'unreadCount': 1,
-    },
-  ];
+  final TextEditingController _emailController = TextEditingController();
 
   @override
   void dispose() {
@@ -48,25 +25,95 @@ class _ChatListScreenState extends State<ChatListScreen> {
     super.dispose();
   }
 
-  void _signOut(BuildContext context) async {
+  Future<void> _signOut(BuildContext context) async {
     try {
       await _firebaseService.signOut();
       if (context.mounted) {
         context.go('/login');
+      }
+    } catch (e) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Signed out successfully'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text(e.toString()),
           ),
         );
       }
+    }
+  }
+
+  Future<void> _startnewChat() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) return;
+
+    try {
+      // check apakah user ada di database
+      final userQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .get();
+
+      // jika ga ada, munculin snackbar bahwa user not found
+      if (userQuery.docs.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('User not found'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+
+      // kalau misal emang user ada, kita check lagi apakah chatan kita sama target user nya ada?
+      final otherUserId = userQuery.docs.first.id;
+      final currentUserId = _firebaseService.currentUser?.uid;
+
+      // kalau ada, kita navigate ke screen chat
+      final exsitingQuery = await FirebaseFirestore.instance
+          .collection('chats')
+          .where('participants', arrayContains: currentUserId)
+          .get();
+
+      QueryDocumentSnapshot<Map<String, dynamic>>? existingChat;
+      for (final doc in exsitingQuery.docs) {
+        final participants = doc['participants'] as List<dynamic>;
+        if (participants.contains(otherUserId)) {
+          existingChat = doc;
+          break;
+        }
+      }
+
+      if (existingChat != null) {
+        if (mounted) {
+          context.push('/chats/$otherUserId', extra: email);
+        }
+        return;
+      }
+
+      // kalau ga gada, kita buat chat baru, kemudian navigate ke screen chat
+      final chatId = _chatService.generateChatId(currentUserId!, otherUserId);
+      await FirebaseFirestore.instance.collection('chats').doc(chatId).set({
+        'participants': [currentUserId, otherUserId],
+        'createdAt': FieldValue.serverTimestamp(),
+        'lastMessage': '',
+        'lastMessageTime': FieldValue.serverTimestamp(),
+        'lastMessageSender': '',
+      });
+
+      if (mounted) {
+        Navigator.pop(context);
+        context.push('/chats/$otherUserId', extra: email);
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Sign out failed: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to create chat'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -90,76 +137,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
           ),
           TextButton(
             onPressed: () async {
-              final email = _emailController.text.trim();
-              if (email.isEmpty) return;
-              try {
-                final userQuery = await FirebaseFirestore.instance
-                    .collection('users')
-                    .where('email', isEqualTo: email)
-                    .where('provider', isEqualTo: 'google')
-                    .get();
-                if (userQuery.docs.isEmpty) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('User not found'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-
-                final otherUserid = userQuery.docs.first.id;
-                final currentUserId = _firebaseService.currentUser?.uid;
-
-                final exitingQuery = await FirebaseFirestore.instance
-                    .collection('chats')
-                    .where('participants', arrayContains: currentUserId)
-                    .get();
-
-                QueryDocumentSnapshot<Map<String, dynamic>>? existingChat;
-                for (final doc in exitingQuery.docs) {
-                  final participants = doc['participants'] as List<dynamic>;
-                  if (participants.contains(otherUserid)) {
-                    existingChat = doc;
-                    break;
-                  }
-                }
-
-                if (existingChat != null) {
-                  if (mounted) {
-                    context.push('/chats/$otherUserid', extra: email);
-                  }
-                  return;
-                }
-
-                final chatId =
-                    _chatService.generateChatId(currentUserId!, otherUserid);
-                await FirebaseFirestore.instance
-                    .collection('chats')
-                    .doc(chatId)
-                    .set({
-                  'participants': [currentUserId, otherUserid],
-                  'lastMessageSender': '',
-                  'lastMessage': '',
-                  'createdAt': FieldValue.serverTimestamp(),
-                  'lastMessageTime': FieldValue.serverTimestamp(),
-                });
-                if (mounted) {
-                  Navigator.pop(context);
-                  context.push('/chats/$otherUserid', extra: email);
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-                return;
-              }
+              await _startnewChat();
             },
             child: const Text('Start Chat'),
           ),
@@ -172,7 +150,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chats'),
+        title: const Text(
+          'Chatty',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+            fontSize: 25,
+          ),
+        ),
+        backgroundColor: Colors.amber[300],
+        elevation: 2,
+        iconTheme: const IconThemeData(color: Colors.black87),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -180,69 +168,72 @@ class _ChatListScreenState extends State<ChatListScreen> {
           ),
         ],
       ),
-      body: _mockChats.isEmpty
-          ? const _NoMessagesWidget()
-          : StreamBuilder<QuerySnapshot>(
-              stream: _chatService.getUserChats(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text(
-                      'Error: ${snapshot.error}',
-                      style: TextStyle(color: Colors.red, fontSize: 16.sp),
-                    ),
-                  );
-                }
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.w,
-                      color: Colors.blue,
-                    ),
-                  );
-                }
-                final chats = snapshot.data?.docs ?? [];
-                if (chats.isEmpty) {
-                  return const _NoMessagesWidget();
-                }
-                return ListView.builder(
-                  padding: EdgeInsets.symmetric(vertical: 8.h),
-                  itemCount: chats.length,
-                  itemBuilder: (context, index) {
-                    final chat = chats[index].data() as Map<String, dynamic>;
-                    final participants = chat['participants'] as List<dynamic>;
-                    final otherUserId = participants.firstWhere(
-                        (element) => element != _chatService.currentUser?.uid);
-                    return FutureBuilder(
-                        future: FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(otherUserId)
-                            .get(),
-                        builder: (context, userSnapShot) {
-                          if (!userSnapShot.hasData) {
-                            return const ListTile(
-                              title: Text('Loading...'),
-                            );
-                          }
+      body: StreamBuilder<QuerySnapshot>(
+          stream: _chatService.getUserChats(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(
+                child: Text('Error!: ${snapshot.error}'),
+              );
+            }
 
-                          final userData = userSnapShot.data!.data();
-                          print('User Data: ${userData?['displayName']}');
-                          final otherUserName = userData?['name'] ?? 'Unknown User';
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            }
 
-                          return _ChatListItem(
-                            name: otherUserName, 
-                            lastMessage: chat['lastMessage'].isNullOrEmpty() 
-                                ? 'No messages yet'
-                                : chat['lastMessage'],
-                            time: formatTimeStamp(chat['lastMessageTime'] as Timestamp? ?? Timestamp.now()),
-                            unreadCount: chat['unreadCount'],
-                            onTap: () => context.push('/chats/${chat['id']}', extra: chat['name']));
-                        });
-                  },
-                );
-              }),
+            final chats = snapshot.data?.docs ?? [];
+
+            if (chats.isEmpty) {
+              return const _NoMessagesWidget();
+            }
+
+            return Container(
+              color: Colors.amber[50],
+              child: ListView.builder(
+                padding: EdgeInsets.symmetric(vertical: 8.h),
+                itemCount: chats.length,
+                itemBuilder: (context, index) {
+                  final chat = chats[index].data() as Map<String, dynamic>;
+                  final participants = chat['participants'] as List<dynamic>;
+                  final otherUserId = participants
+                      .firstWhere((id) => id != _chatService.currentUser?.uid);
+                  return FutureBuilder(
+                      future: FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(otherUserId)
+                          .get(),
+                      builder: (context, userSnapshot) {
+                        if (!userSnapshot.hasData) {
+                          return const ListTile(
+                            title: Text('Loading...'),
+                          );
+                        }
+
+                        final userData =
+                            userSnapshot.data?.data() as Map<String, dynamic>?;
+                        print('ID!!: ${userData?['uid']}');
+                        print('Namaaaa: ${userData?['displayName']}');
+                        final otherUserName = userData?['displayName'] ?? 'Unknown';
+
+                        return _ChatListItem(
+                          name: otherUserName,
+                          lastMessage: chat['lastMessage'] ?? 'No Message Yet',
+                          time: formatTimeStamp(chat['lastMessageTime']),
+                          unreadCount: 0,
+                          onTap: () => context.push('/chats/$otherUserId',
+                              extra: otherUserName),
+                        );
+                      });
+                },
+              ),
+            );
+          }),
       floatingActionButton: FloatingActionButton(
         onPressed: _showNewChatDialog,
+        backgroundColor: Colors.amber[400],
+        foregroundColor: Colors.black87,
         child: const Icon(Icons.chat),
       ),
     );
@@ -267,46 +258,78 @@ class _ChatListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      onTap: onTap,
-      leading: CircleAvatar(
-        child: Text(name[0]),
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.amber.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      title: Text(name),
-      subtitle: Text(
-        lastMessage,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            time,
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 12.sp,
+      child: ListTile(
+        onTap: onTap,
+        leading: CircleAvatar(
+          backgroundColor: Colors.amber[300],
+          foregroundColor: Colors.black87,
+          child: Text(
+            name[0],
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
             ),
           ),
-          if (unreadCount > 0) ...[
-            const SizedBox(height: 4),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
-              decoration: BoxDecoration(
-                color: Colors.blue,
-                borderRadius: BorderRadius.circular(10.r),
-              ),
-              child: Text(
-                unreadCount.toString(),
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12.sp,
-                ),
+        ),
+        title: Text(
+          name,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        subtitle: Text(
+          lastMessage,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: Colors.grey[600],
+          ),
+        ),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              time,
+              style: TextStyle(
+                color: Colors.amber[700],
+                fontSize: 12.sp,
+                fontWeight: FontWeight.w500,
               ),
             ),
+            if (unreadCount > 0) ...[
+              const SizedBox(height: 4),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                decoration: BoxDecoration(
+                  color: Colors.amber[600],
+                  borderRadius: BorderRadius.circular(10.r),
+                ),
+                child: Text(
+                  unreadCount.toString(),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -317,33 +340,36 @@ class _NoMessagesWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.chat_bubble_outline,
-            size: 64.r,
-            color: Colors.grey[400],
-          ),
-          SizedBox(height: 16.h),
-          Text(
-            'No chats yet',
-            style: TextStyle(
-              fontSize: 18.sp,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
+    return Container(
+      color: Colors.amber[50],
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.chat_bubble_outline,
+              size: 64.r,
+              color: Colors.amber[300],
             ),
-          ),
-          SizedBox(height: 8.h),
-          Text(
-            'Start a new conversation!',
-            style: TextStyle(
-              fontSize: 14.sp,
-              color: Colors.grey[500],
+            SizedBox(height: 16.h),
+            Text(
+              'No chats yet',
+              style: TextStyle(
+                fontSize: 18.sp,
+                color: Colors.amber[800],
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-        ],
+            SizedBox(height: 8.h),
+            Text(
+              'Start a new conversation!',
+              style: TextStyle(
+                fontSize: 14.sp,
+                color: Colors.amber[600],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

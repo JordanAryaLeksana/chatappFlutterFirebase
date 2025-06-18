@@ -12,7 +12,20 @@
           "package_name": "com.example.chatty"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "43077897549-l4ctmd9bo645pbpa08vscart2cs8cau4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.chatty",
+            "certificate_hash": "2051135e08f0839218a2928d184f30adec8e39e3"
+          }
+        },
+        {
+          "client_id": "43077897549-67cbgtkrgjo36h6ki1vl0na2640pk8ja.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDAS5DbMaxExivwVtZDtwUKsIS2orh_Jns"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "43077897549-67cbgtkrgjo36h6ki1vl0na2640pk8ja.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "43077897549-22ik9s0rg8j2cj8ihf63nbl2p4j92mh7.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.chatty"
+              }
+            }
+          ]
         }
       }
     }
